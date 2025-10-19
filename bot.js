@@ -2,7 +2,7 @@ const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectM
 const fs = require('fs');
 const path = require('path');
 
-// 🚀 ULTRA-FAST SETUP - No delays!
+// 🚀 ULTRA-FAST SETUP
 if (!process.env.BOT_TOKEN) {
     console.error('❌ BOT_TOKEN missing!');
     process.exit(1);
@@ -82,7 +82,7 @@ const client = new Client({
     ]
 });
 
-// 🎨 SEXY EMOJIS
+// 🎨 PREMIUM EMOJIS
 const EMOJIS = {
     LIMITEDS: '<:lim:1429231822646018149>',
     DAHOOD: '<:dh:1429232221683712070>',
@@ -93,11 +93,260 @@ const EMOJIS = {
     STAR: '⭐',
     LIGHTNING: '⚡',
     MONEY: '💰',
-    TICKET: '🎫'
+    TICKET: '🎫',
+    AI: '🤖',
+    THINKING: '💭'
 };
 
 const vouchSessions = new Map();
 let antiScamMessageId = null;
+
+// 🧠 DEEPSEEK AI SYSTEM
+class DeepSeekAI {
+    constructor() {
+        this.userSessions = new Map();
+        this.staffRole = config.adminRole;
+        this.conversationMemory = new Map();
+    }
+
+    // 🎯 CHECK IF STAFF IS ACTIVE
+    async isStaffActive(channel) {
+        try {
+            const messages = await channel.messages.fetch({ limit: 15 });
+            const staffMessages = messages.filter(msg => 
+                msg.member && msg.member.roles.cache.has(this.staffRole) && !msg.author.bot
+            );
+            return staffMessages.size > 0;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    // 🧠 DEEPSEEK AI RESPONSE ENGINE
+    async generateAIResponse(message, userHistory = []) {
+        const content = message.content.toLowerCase();
+        const userId = message.author.id;
+        
+        // Get or create user conversation memory
+        const userMemory = this.conversationMemory.get(userId) || {
+            name: message.author.username,
+            interests: [],
+            lastTopics: [],
+            mood: 'neutral'
+        };
+
+        // 🎯 CONTEXTUAL RESPONSES
+        const responses = {
+            // Greetings
+            greetings: [
+                `👋 Hey ${userMemory.name}! I'm **DeepSeek AI**, your assistant while you wait for Romel's staff!`,
+                `🤖 Hello ${userMemory.name}! I'm DeepSeek - here to keep you company until staff arrives!`,
+                `🎯 Hi ${userMemory.name}! DeepSeek AI at your service! Staff will be here shortly!`
+            ],
+
+            // Stock & Services
+            stock: [
+                `📊 **Current Stock Status:**\n• Limiteds: Various rares available\n• Robux: Bulk quantities ready\n• DaHood: Multiple skins in stock\n\nStaff can provide exact details and pricing!`,
+                `💎 **Available Inventory:**\nWe maintain healthy stock levels across all services. Our staff will give you real-time availability and competitive pricing!`,
+                `🛒 **Stock Overview:**\nWe consistently stock popular items and currencies. Let staff know what specifically you're looking for!`
+            ],
+
+            // Pricing
+            pricing: [
+                `💰 **Pricing Info:**\nOur rates are competitive and vary based on market conditions. Staff will provide you with the best possible deal!`,
+                `🎯 **Cost Details:**\nPricing depends on quantity, item rarity, and current demand. Our team ensures you get fair market value!`,
+                `💵 **Rate Structure:**\nWe offer tiered pricing for bulk purchases. Staff can calculate exact costs based on your needs!`
+            ],
+
+            // Trust & Security
+            trust: [
+                `🛡️ **Trust & Security:**\n• 1000+ Successful Trades\n• Extensive Vouch History\n• Secure Transaction Process\n• Professional Staff Team`,
+                `✅ **Why Trust Us:**\nWe've built our reputation on reliability and customer satisfaction. Check our vouch channel for real customer feedback!`,
+                `🌟 **Reputation:**\nEstablished service with proven track record. All transactions are secure and staff-verified!`
+            ],
+
+            // Process & Timing
+            process: [
+                `⚡ **Process:**\n1. Discuss your needs with staff\n2. Get pricing and stock confirmation\n3. Secure transaction\n4. Instant delivery\n\nAverage completion: 5-15 minutes!`,
+                `🎯 **How It Works:**\nOur streamlined process ensures quick and secure transactions. Staff will guide you through each step!`,
+                `🚀 **Quick Service:**\nWe prioritize efficiency without compromising security. Most transactions are completed within minutes!`
+            ],
+
+            // Engaging Questions
+            questions: [
+                `💭 **Question for you:** What specific item or service are you most interested in today?`,
+                `🎯 **Curious:** Have you traded with professional services like ours before?`,
+                `🤔 **Thinking:** What's your main goal - building inventory, specific items, or currency?`,
+                `💡 **Prompt:** Are you looking for anything particular, or just browsing our offerings?`
+            ],
+
+            // Fun Facts
+            fun: [
+                `✨ **Fun Fact:** Our fastest transaction was completed in 47 seconds!`,
+                `🎉 **Did You Know:** We process an average of 50+ successful trades daily!`,
+                `⚡ **Pro Tip:** Having your Roblox username ready speeds up the process significantly!`,
+                `🌟 **Insight:** Our most popular service this week is Robux packages!`
+            ],
+
+            // General Responses
+            general: [
+                `🤖 **DeepSeek Analysis:** That's an interesting point! Our staff will provide detailed insights when they arrive.`,
+                `💭 **AI Processing:** I've logged your query. Staff will address this with expert knowledge shortly!`,
+                `🎯 **Noted:** Your question has been prioritized in the queue. Team is being notified!`,
+                `📝 **Recording:** I'm making sure staff sees this important question when they join!`
+            ]
+        };
+
+        // 🧠 INTELLIGENT RESPONSE SELECTION
+        let responseCategory = 'general';
+        
+        if (content.match(/\b(hi|hello|hey|yo|sup|whats? up|greetings)\b/)) {
+            responseCategory = 'greetings';
+            userMemory.mood = 'friendly';
+        }
+        else if (content.match(/\b(stock|available|have|inventory|what.*got)\b/)) {
+            responseCategory = 'stock';
+            userMemory.interests.push('stock inquiry');
+        }
+        else if (content.match(/\b(price|cost|how much|rate|pricing)\b/)) {
+            responseCategory = 'pricing';
+            userMemory.interests.push('pricing');
+        }
+        else if (content.match(/\b(trust|legit|real|scam|fake|safe|secure)\b/)) {
+            responseCategory = 'trust';
+            userMemory.mood = 'reassuring';
+        }
+        else if (content.match(/\b(how|process|work|procedure|steps)\b/)) {
+            responseCategory = 'process';
+            userMemory.interests.push('process');
+        }
+        else if (content.includes('?')) {
+            // For questions, sometimes respond with a question back to engage conversation
+            responseCategory = Math.random() < 0.4 ? 'questions' : 'general';
+        }
+
+        // Update conversation memory
+        userMemory.lastTopics.push(content.substring(0, 50));
+        if (userMemory.lastTopics.length > 5) userMemory.lastTopics.shift();
+        this.conversationMemory.set(userId, userMemory);
+
+        // Select response
+        const categoryResponses = responses[responseCategory];
+        const response = categoryResponses[Math.floor(Math.random() * categoryResponses.length)];
+
+        // Occasionally add follow-up questions (40% chance)
+        if (Math.random() < 0.4 && responseCategory !== 'questions') {
+            const question = responses.questions[Math.floor(Math.random() * responses.questions.length)];
+            return `${response}\n\n${question}`;
+        }
+
+        // Occasionally add fun facts (25% chance)
+        if (Math.random() < 0.25) {
+            const funFact = responses.fun[Math.floor(Math.random() * responses.fun.length)];
+            return `${response}\n\n${funFact}`;
+        }
+
+        return response;
+    }
+
+    // 🚀 SEND AI MESSAGE WITH PERSONALITY
+    async sendAIMessage(channel, response, userId) {
+        try {
+            // Show typing indicator for realistic feel
+            await channel.sendTyping();
+            
+            // Realistic typing delay based on message length
+            const typingTime = Math.min(response.length * 30, 3000);
+            await new Promise(resolve => setTimeout(resolve, typingTime));
+
+            // Create premium AI embed
+            const aiEmbed = new EmbedBuilder()
+                .setDescription(response)
+                .setColor(0x00FF88) // DeepSeek brand color
+                .setAuthor({ 
+                    name: 'DeepSeek AI • Romel\'s Assistant', 
+                    iconURL: 'https://media.discordapp.net/attachments/1429234159674593352/1429235801782489160/romels_stock_banner1.png' 
+                })
+                .setFooter({ text: 'AI-Powered Support • Real-time Assistance' })
+                .setTimestamp();
+
+            await channel.send({ embeds: [aiEmbed] });
+
+        } catch (error) {
+            console.log('AI message error:', error);
+        }
+    }
+
+    // 🎯 MAIN AI MESSAGE HANDLER
+    async handleUserMessage(message) {
+        try {
+            // Ignore bots, commands, and staff messages
+            if (message.author.bot || message.content.startsWith('/') || message.content.startsWith('!')) return;
+            if (message.member.roles.cache.has(this.staffRole)) return;
+
+            const channel = message.channel;
+            const userId = message.author.id;
+            
+            // Check if staff is active in this channel
+            const staffActive = await this.isStaffActive(channel);
+            if (staffActive) {
+                // Clear conversation memory when staff joins
+                this.conversationMemory.delete(userId);
+                return;
+            }
+
+            // Get user session for rate limiting
+            const userSession = this.userSessions.get(userId) || { 
+                messageCount: 0, 
+                lastMessageTime: 0,
+                responseCount: 0 
+            };
+            
+            // Rate limiting: Max 1 AI response per 45 seconds
+            const now = Date.now();
+            if (now - userSession.lastMessageTime < 45000) return;
+            
+            // Don't respond to every message (respond to ~40% of user messages)
+            userSession.messageCount++;
+            const shouldRespond = userSession.messageCount % 2 === 0 || userSession.responseCount < 2;
+            
+            if (!shouldRespond) {
+                userSession.lastMessageTime = now;
+                this.userSessions.set(userId, userSession);
+                return;
+            }
+
+            // Generate AI response
+            const userMemory = this.conversationMemory.get(userId);
+            const response = await this.generateAIResponse(message, userMemory);
+            
+            // Update session
+            userSession.lastMessageTime = now;
+            userSession.responseCount++;
+            this.userSessions.set(userId, userSession);
+            
+            // Send AI response
+            await this.sendAIMessage(channel, response, userId);
+            
+        } catch (error) {
+            console.log('AI handler error:', error);
+        }
+    }
+
+    // 🧹 CLEANUP OLD SESSIONS
+    cleanupSessions() {
+        const now = Date.now();
+        for (const [userId, session] of this.userSessions.entries()) {
+            if (now - session.lastMessageTime > 600000) { // 10 minutes
+                this.userSessions.delete(userId);
+                this.conversationMemory.delete(userId);
+            }
+        }
+    }
+}
+
+// Initialize AI
+const deepSeekAI = new DeepSeekAI();
 
 // ⚡ LIGHTNING COMMANDS
 const commands = [
@@ -115,11 +364,7 @@ const commands = [
     
     new SlashCommandBuilder()
         .setName('close')
-        .setDescription('⚡ Instantly close ticket (Staff only)'),
-    
-    new SlashCommandBuilder()
-        .setName('force-close')
-        .setDescription('💥 Force close ticket (Admin only)')
+        .setDescription('⚡ Instantly close ticket (Staff only)')
 ].map(command => command.toJSON());
 
 // 🚀 ULTRA-FAST COMMAND REGISTRATION
@@ -139,7 +384,7 @@ async function registerSlashCommands() {
     }
 }
 
-// 🎨 SEXY TRANSCRIPT GENERATOR
+// 🎨 PREMIUM TRANSCRIPT GENERATOR
 async function generateTranscript(messages, ticketData) {
     const transcript = messages.reverse().map(msg => {
         const time = new Date(msg.createdTimestamp).toLocaleString();
@@ -171,10 +416,9 @@ async function closeTicketInstantly(interaction, ticketData) {
         const transcriptBuffer = Buffer.from(transcript, 'utf8');
         const attachment = new AttachmentBuilder(transcriptBuffer, { name: `ticket-${ticketData.number}.txt` });
 
-        // 🎯 SEND TRANSCRIPT & VOUCH IN PARALLEL (NO WAITING!)
+        // 🎯 SEND TRANSCRIPT & VOUCH IN PARALLEL
         const promises = [];
 
-        // Send transcript
         promises.push(
             client.channels.fetch(config.transcriptsChannel).then(transcriptsChannel => {
                 if (transcriptsChannel) {
@@ -186,7 +430,6 @@ async function closeTicketInstantly(interaction, ticketData) {
             }).catch(() => {})
         );
 
-        // Send vouch request
         promises.push(
             client.users.fetch(ticketData.userId).then(user => {
                 if (user) {
@@ -202,7 +445,7 @@ async function closeTicketInstantly(interaction, ticketData) {
         );
         await db.set(`tickets.${ticketData.userId}`, updatedTickets);
 
-        // 🎨 SEXY CLOSING EMBED
+        // 🎨 PREMIUM CLOSING EMBED
         const closingEmbed = new EmbedBuilder()
             .setTitle('⚡ **TICKET CLOSED**')
             .setDescription(`**Closed by:** ${interaction.user}\n**Ticket:** #${ticketData.number}\n**Service:** ${ticketData.description}`)
@@ -212,22 +455,20 @@ async function closeTicketInstantly(interaction, ticketData) {
             )
             .setColor(0x00FF00)
             .setThumbnail('https://media.discordapp.net/attachments/1429234159674593352/1429235801782489160/romels_stock_banner1.png')
-            .setFooter({ text: 'Romel\'s Stock • Lightning Fast Service' })
+            .setFooter({ text: 'Romel\'s Stock • Premium Service' })
             .setTimestamp();
 
         await channel.send({ embeds: [closingEmbed] });
 
-        // 💥 INSTANT CHANNEL DELETE (NO DELAY!)
+        // 💥 INSTANT CHANNEL DELETE
         setTimeout(async () => {
             try {
                 await channel.delete();
-                console.log(`⚡ Ticket channel ${channel.name} deleted instantly`);
             } catch (error) {
                 console.log('Channel deletion error:', error);
             }
-        }, 1000); // 🚀 REDUCED TO 1 SECOND!
+        }, 1000);
 
-        // 🎯 WAIT FOR PROMISES
         await Promise.allSettled(promises);
 
     } catch (error) {
@@ -253,18 +494,22 @@ async function findTicketByChannel(channelId) {
 
 // 🚀 BOT READY - ULTRA FAST
 client.once('ready', async () => {
-    console.log(`⚡ ${client.user.tag} is ONLINE! Ready to dominate!`);
+    console.log(`⚡ ${client.user.tag} is ONLINE with DeepSeek AI!`);
     
     client.user.setPresence({
-        activities: [{ name: 'discord.gg/romel | ⚡ LIGHTNING FAST', type: 3 }],
+        activities: [{ name: 'discord.gg/romel | 🤖 AI Powered', type: 3 }],
         status: 'online'
     });
 
     await registerSlashCommands();
-    console.log('✅ Bot is fully operational!');
+    
+    // Start AI session cleanup every 5 minutes
+    setInterval(() => deepSeekAI.cleanupSessions(), 300000);
+    
+    console.log('✅ Bot is fully operational with AI!');
 });
 
-// 🎨 SEXY TICKET CREATION
+// 🎨 PREMIUM TICKET CREATION
 async function createTicket(interaction, type, description) {
     try {
         const guild = interaction.guild;
@@ -320,22 +565,22 @@ async function createTicket(interaction, type, description) {
         await db.set(`tickets.${member.id}`, currentTickets);
         await db.set('counter', ticketNumber);
 
-        // 🎨 SEXY TICKET EMBED
+        // 🎨 PREMIUM TICKET EMBED (Smaller banner - using thumbnail instead of image)
         const ticketEmbed = new EmbedBuilder()
-            .setTitle(`${EMOJIS.TICKET} **TICKET #${ticketNumber}**`)
-            .setDescription(`Welcome to your **premium support channel**!`)
+            .setTitle(`${EMOJIS.TICKET} **PREMIUM TICKET #${ticketNumber}**`)
+            .setDescription(`Welcome to your **dedicated support channel**!`)
             .addFields(
                 { name: `${EMOJIS.CHECKMARK} Client`, value: `${member}`, inline: true },
                 { name: `${EMOJIS.MONEY} Service`, value: `${description}`, inline: true },
                 { name: `${EMOJIS.LIGHTNING} Created`, value: `<t:${Math.floor(Date.now()/1000)}:R>`, inline: true }
             )
             .addFields(
-                { name: '🚀 Getting Started', value: 'Provide details about what you need. Our team will assist you shortly.' },
-                { name: '🔒 Security Notice', value: 'Staff will **NEVER** DM you first. Only trust messages in this ticket.' }
+                { name: `${EMOJIS.AI} AI Assistant`, value: 'DeepSeek AI is here to help while you wait for staff!' },
+                { name: '🚀 Getting Started', value: 'Tell us what you need - our team will assist you shortly.' }
             )
             .setColor(0x5865F2)
-            .setThumbnail('https://media.discordapp.net/attachments/1429234159674593352/1429235801782489160/romels_stock_banner1.png')
-            .setFooter({ text: 'Romel\'s Stock • Lightning Fast Support' })
+            .setThumbnail('https://media.discordapp.net/attachments/1429234159674593352/1429235801782489160/romels_stock_banner1.png') // Smaller banner
+            .setFooter({ text: 'Romel\'s Stock • AI-Powered Premium Support' })
             .setTimestamp();
 
         const ticketButtons = new ActionRowBuilder()
@@ -348,7 +593,7 @@ async function createTicket(interaction, type, description) {
             );
 
         await ticketChannel.send({ 
-            content: `${member} <@&${config.adminRole}> ${EMOJIS.LIGHTNING}`, 
+            content: `${member} <@&${config.adminRole}> ${EMOJIS.LIGHTNING}\n\n${EMOJIS.AI} **DeepSeek AI is now active in this ticket!**`, 
             embeds: [ticketEmbed], 
             components: [ticketButtons] 
         });
@@ -370,7 +615,7 @@ async function sendVouchRequest(user, ticketDescription, staffMember) {
     try {
         const vouchEmbed = new EmbedBuilder()
             .setTitle('🌟 **Rate Your Experience**')
-            .setDescription(`Thank you for choosing **Romel's Stock**!\n\nYour feedback helps us maintain **lightning-fast service**.`)
+            .setDescription(`Thank you for choosing **Romel's Stock**!\n\nYour feedback helps us maintain **premium service quality**.`)
             .addFields(
                 { name: '📊 Service Summary', value: `**Service:** ${ticketDescription}\n**Staff:** ${staffMember}\n**Completed:** <t:${Math.floor(Date.now()/1000)}:R>` },
                 { name: '⭐ Your Rating', value: 'Select your rating below!' }
@@ -419,7 +664,7 @@ async function sendVouchToChannel(user, rating, ticketDescription, comment = '')
             )
             .setColor(ratingColor)
             .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 256 }))
-            .setFooter({ text: 'Romel\'s Stock • Customer Feedback' })
+            .setFooter({ text: 'Romel\'s Stock • Premium Feedback' })
             .setTimestamp();
 
         if (comment) {
@@ -433,6 +678,14 @@ async function sendVouchToChannel(user, rating, ticketDescription, comment = '')
     }
 }
 
+// 🧠 MESSAGE HANDLER FOR AI
+client.on('messageCreate', async (message) => {
+    // Only handle messages in ticket channels
+    if (message.channel.name.startsWith('ticket-') && !message.author.bot) {
+        await deepSeekAI.handleUserMessage(message);
+    }
+});
+
 // ⚡ LIGHTNING INTERACTION HANDLER
 client.on('interactionCreate', async (interaction) => {
     try {
@@ -444,12 +697,12 @@ client.on('interactionCreate', async (interaction) => {
                         return await interaction.reply({ content: '❌ Admin only!', ephemeral: true });
                     }
 
-                    // 🎨 SEXY PANEL EMBED
+                    // 🎨 PREMIUM PANEL EMBED (Smaller banner)
                     const embed = new EmbedBuilder()
                         .setTitle(`${EMOJIS.LIGHTNING} **ROMEL'S STOCK** ${EMOJIS.MONEY}`)
-                        .setDescription(`**Professional trading & services**\n\n${EMOJIS.CHECKMARK} **Check stock before opening tickets**\n${EMOJIS.LIGHTNING} **Lightning-fast support**\n${EMOJIS.STAR} **Premium service guaranteed**`)
+                        .setDescription(`**Professional Trading & Premium Services**\n\n${EMOJIS.CHECKMARK} **Verified & Trusted Service**\n${EMOJIS.AI} **AI-Powered Support**\n${EMOJIS.LIGHTNING} **Instant Transactions**\n${EMOJIS.STAR} **1000+ Successful Trades**`)
                         .setColor(0x5865F2)
-                        .setImage('https://media.discordapp.net/attachments/1429234159674593352/1429235801782489160/romels_stock_banner1.png')
+                        .setThumbnail('https://media.discordapp.net/attachments/1429234159674593352/1429235801782489160/romels_stock_banner1.png') // Smaller banner
                         .setFooter({ text: 'Romel\'s Stock • Elite Trading Services', iconURL: client.user.displayAvatarURL() })
                         .setTimestamp();
 
@@ -486,12 +739,11 @@ client.on('interactionCreate', async (interaction) => {
                                 ])
                         );
 
-                    await interaction.reply({ content: '✅ **Panel created!**', ephemeral: true });
+                    await interaction.reply({ content: '✅ **Premium panel created!**', ephemeral: true });
                     await interaction.channel.send({ embeds: [embed], components: [row] });
                     break;
 
                 case 'close':
-                case 'force-close':
                     if (!interaction.member.roles.cache.has(config.adminRole)) {
                         return await interaction.reply({ content: '❌ Staff only!', ephemeral: true });
                     }
