@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ChannelType, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, SlashCommandBuilder, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ChannelType, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, SlashCommandBuilder, REST, Routes, PermissionsBitField } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -24,7 +24,12 @@ class SimpleDB {
     }
 
     read() {
-        return JSON.parse(fs.readFileSync(this.filePath, 'utf8'));
+        try {
+            return JSON.parse(fs.readFileSync(this.filePath, 'utf8'));
+        } catch (error) {
+            console.error('Error reading database:', error);
+            return { tickets: {}, counter: 0 };
+        }
     }
 
     write(data) {
@@ -59,7 +64,8 @@ const config = {
     guildId: '1406416544451399832',
     adminRole: '1406420130044313772',
     ticketsChannel: '1406418069181436017',
-    vouchChannel: '1429250208016896040'
+    vouchChannel: '1429250208016896040',
+    transcriptsChannel: '1406761652510134294' // Added transcripts channel
 };
 
 // Validate token format
@@ -102,7 +108,11 @@ const commands = [
     
     new SlashCommandBuilder()
         .setName('ping')
-        .setDescription('Check bot latency')
+        .setDescription('Check bot latency'),
+    
+    new SlashCommandBuilder()
+        .setName('close')
+        .setDescription('Close the current ticket (Staff only)')
 ].map(command => command.toJSON());
 
 async function registerSlashCommands() {
@@ -118,6 +128,86 @@ async function registerSlashCommands() {
         console.log('✅ Slash commands registered!');
     } catch (error) {
         console.error('Error registering commands:', error);
+    }
+}
+
+// Generate transcript HTML
+async function generateTranscript(messages, ticketData) {
+    let html = `<!DOCTYPE html>
+<html>
+<head>
+    <title>Ticket #${ticketData.number} - ${ticketData.userTag}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #36393f; color: #dcddde; }
+        .message { margin: 10px 0; padding: 10px; border-radius: 5px; background: #2f3136; }
+        .author { font-weight: bold; color: #7289da; }
+        .timestamp { color: #72767d; font-size: 0.8em; }
+        .content { margin-top: 5px; }
+        .embed { background: #2f3136; border-left: 4px solid #7289da; padding: 10px; margin: 5px 0; }
+        .header { text-align: center; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Ticket #${ticketData.number}</h1>
+        <p><strong>User:</strong> ${ticketData.userTag} (${ticketData.userId})</p>
+        <p><strong>Service:</strong> ${ticketData.description}</p>
+        <p><strong>Created:</strong> ${new Date(ticketData.createdAt).toLocaleString()}</p>
+        <p><strong>Closed:</strong> ${new Date().toLocaleString()}</p>
+    </div>
+    <div class="messages">`;
+
+    messages.reverse().forEach(message => {
+        if (message.author.bot && message.embeds.length > 0) return; // Skip bot embeds
+        
+        html += `
+        <div class="message">
+            <div class="author">${message.author.tag}</div>
+            <div class="timestamp">${new Date(message.createdTimestamp).toLocaleString()}</div>
+            <div class="content">${message.content || ''}</div>`;
+        
+        if (message.embeds.length > 0) {
+            message.embeds.forEach(embed => {
+                html += `<div class="embed">`;
+                if (embed.title) html += `<strong>${embed.title}</strong><br>`;
+                if (embed.description) html += `${embed.description}<br>`;
+                if (embed.fields) {
+                    embed.fields.forEach(field => {
+                        html += `<strong>${field.name}:</strong> ${field.value}<br>`;
+                    });
+                }
+                html += `</div>`;
+            });
+        }
+        
+        html += `</div>`;
+    });
+
+    html += `
+    </div>
+</body>
+</html>`;
+    
+    return html;
+}
+
+// Save transcript and get file
+async function saveTranscript(messages, ticketData) {
+    try {
+        const html = await generateTranscript(messages, ticketData);
+        const fileName = `transcript-${ticketData.number}-${Date.now()}.html`;
+        const filePath = path.join(__dirname, 'transcripts', fileName);
+        
+        // Ensure transcripts directory exists
+        if (!fs.existsSync(path.join(__dirname, 'transcripts'))) {
+            fs.mkdirSync(path.join(__dirname, 'transcripts'));
+        }
+        
+        fs.writeFileSync(filePath, html);
+        return filePath;
+    } catch (error) {
+        console.error('Error generating transcript:', error);
+        return null;
     }
 }
 
@@ -210,10 +300,12 @@ async function createTicket(interaction, type, description) {
         const ticketChannel = await guild.channels.create({
             name: `ticket-${ticketNumber}`,
             type: ChannelType.GuildText,
+            parent: null, // No category
             permissionOverwrites: [
-                { id: guild.id, deny: [BigInt(0x0000000000000400)] },
-                { id: member.id, allow: [BigInt(0x0000000000000400), BigInt(0x0000000000000800)] },
-                { id: config.adminRole, allow: [BigInt(0x0000000000000400), BigInt(0x0000000000000800)] }
+                { id: guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+                { id: member.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] },
+                { id: config.adminRole, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] },
+                { id: client.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory, PermissionsBitField.Flags.ManageChannels] }
             ]
         });
 
@@ -286,9 +378,11 @@ async function createTicket(interaction, type, description) {
     }
 }
 
-// Premium vouch system
+// Premium vouch system - FIXED
 async function sendVouchRequest(user, ticketDescription, staffMember) {
     try {
+        console.log(`Attempting to send vouch request to ${user.tag} for service: ${ticketDescription}`);
+        
         const vouchEmbed = new EmbedBuilder()
             .setTitle('🌟 Rate Your Experience')
             .setDescription(`Thank you for choosing **Romel's Stock** for **${ticketDescription}**.\n\nYour feedback helps us maintain our quality service.`)
@@ -351,9 +445,10 @@ async function sendVouchRequest(user, ticketDescription, staffMember) {
             components: [vouchDropdown] 
         });
         
+        console.log(`✅ Vouch request sent successfully to ${user.tag}`);
         return true;
     } catch (error) {
-        console.log('Could not send vouch request:', error);
+        console.log('❌ Could not send vouch request:', error);
         return false;
     }
 }
@@ -361,7 +456,10 @@ async function sendVouchRequest(user, ticketDescription, staffMember) {
 async function sendVouchToChannel(user, rating, ticketDescription, comment = '') {
     try {
         const vouchChannel = await client.channels.fetch(config.vouchChannel);
-        if (!vouchChannel) return false;
+        if (!vouchChannel) {
+            console.log('❌ Vouch channel not found');
+            return false;
+        }
         
         const stars = '⭐'.repeat(rating) + '☆'.repeat(5 - rating);
         const ratingColor = rating === 5 ? 0x27ae60 : 
@@ -390,10 +488,113 @@ async function sendVouchToChannel(user, rating, ticketDescription, comment = '')
         }
 
         await vouchChannel.send({ embeds: [vouchEmbed] });
+        console.log(`✅ Vouch posted to channel for ${user.tag}`);
         return true;
     } catch (error) {
-        console.log('Could not send vouch to channel:', error);
+        console.log('❌ Could not send vouch to channel:', error);
         return false;
+    }
+}
+
+// Close ticket function - COMPLETELY REWRITTEN
+async function closeTicket(interaction, ticketData) {
+    try {
+        const channel = interaction.channel;
+        
+        // Get all messages for transcript
+        let messages = [];
+        let lastId;
+        
+        while (true) {
+            const options = { limit: 100 };
+            if (lastId) options.before = lastId;
+            
+            const fetchedMessages = await channel.messages.fetch(options);
+            if (fetchedMessages.size === 0) break;
+            
+            messages.push(...fetchedMessages.values());
+            lastId = fetchedMessages.last().id;
+            
+            if (fetchedMessages.size < 100) break;
+        }
+
+        // Generate and save transcript
+        const transcriptPath = await saveTranscript(messages, ticketData);
+        
+        // Send transcript to transcripts channel
+        if (transcriptPath) {
+            try {
+                const transcriptsChannel = await client.channels.fetch(config.transcriptsChannel);
+                if (transcriptsChannel) {
+                    await transcriptsChannel.send({
+                        content: `📄 Transcript for Ticket #${ticketData.number}`,
+                        files: [transcriptPath]
+                    });
+                    console.log(`✅ Transcript saved for ticket #${ticketData.number}`);
+                }
+            } catch (error) {
+                console.log('Could not send transcript to channel:', error);
+            }
+        }
+
+        // Find ticket creator and send vouch request
+        try {
+            const user = await client.users.fetch(ticketData.userId);
+            if (user) {
+                await sendVouchRequest(user, ticketData.description, interaction.user.tag);
+                console.log(`✅ Vouch request sent to ${user.tag}`);
+            }
+        } catch (error) {
+            console.log('Could not send vouch request:', error);
+        }
+
+        // Update database - mark ticket as closed
+        const userTickets = await db.get(`tickets.${ticketData.userId}`) || [];
+        const updatedTickets = userTickets.map(ticket => 
+            ticket.channelId === channel.id ? { ...ticket, open: false, closedAt: new Date().toISOString() } : ticket
+        );
+        await db.set(`tickets.${ticketData.userId}`, updatedTickets);
+
+        const closingEmbed = new EmbedBuilder()
+            .setTitle('🎉 Ticket Closed')
+            .setDescription(`**Closed by:** ${interaction.user}\n\n• Transcript has been saved\n• Feedback request sent to user\n• Channel will be deleted in 5 seconds`)
+            .setColor(0x95a5a6)
+            .setTimestamp();
+
+        await channel.send({ embeds: [closingEmbed] });
+        
+        // Delete channel after delay
+        setTimeout(async () => {
+            try {
+                await channel.delete();
+                console.log(`✅ Ticket channel ${channel.name} deleted`);
+            } catch (error) {
+                console.log('Error deleting channel:', error);
+            }
+        }, 5000);
+
+    } catch (error) {
+        console.error('Error closing ticket:', error);
+        await interaction.followUp({ 
+            content: '❌ Error closing ticket. Please try again.', 
+            ephemeral: true 
+        });
+    }
+}
+
+// Find ticket data by channel ID
+async function findTicketByChannel(channelId) {
+    try {
+        const data = db.read();
+        for (const userId in data.tickets) {
+            const userTickets = data.tickets[userId];
+            const ticket = userTickets.find(t => t.channelId === channelId && t.open);
+            if (ticket) return ticket;
+        }
+        return null;
+    } catch (error) {
+        console.error('Error finding ticket:', error);
+        return null;
     }
 }
 
@@ -403,7 +604,7 @@ client.on('interactionCreate', async (interaction) => {
         if (interaction.isChatInputCommand()) {
             switch (interaction.commandName) {
                 case 'setup-tickets':
-                    if (!interaction.member.permissions.has('Administrator')) {
+                    if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
                         return await interaction.reply({ 
                             content: '❌ You need administrator permissions to use this command.', 
                             ephemeral: true 
@@ -477,6 +678,30 @@ client.on('interactionCreate', async (interaction) => {
                         content: `🏓 Pong! Latency: ${latency}ms | API: ${Math.round(client.ws.ping)}ms`,
                         ephemeral: true 
                     });
+                    break;
+
+                case 'close':
+                    if (!interaction.member.roles.cache.has(config.adminRole)) {
+                        return await interaction.reply({ 
+                            content: '❌ You need the staff role to use this command.', 
+                            ephemeral: true 
+                        });
+                    }
+
+                    const ticketData = await findTicketByChannel(interaction.channel.id);
+                    if (!ticketData) {
+                        return await interaction.reply({ 
+                            content: '❌ This is not a ticket channel or ticket data not found.', 
+                            ephemeral: true 
+                        });
+                    }
+
+                    await interaction.reply({ 
+                        content: '🔒 Closing ticket...', 
+                        ephemeral: true 
+                    });
+
+                    await closeTicket(interaction, ticketData);
                     break;
             }
             return;
@@ -601,33 +826,19 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.reply({ embeds: [closeEmbed], components: [row], ephemeral: true });
         }
 
-        // Confirm close ticket
+        // Confirm close ticket - FIXED
         if (interaction.isButton() && interaction.customId === 'confirm_close') {
             await interaction.deferUpdate();
             
-            // Find ticket creator
-            const members = await interaction.channel.members.fetch();
-            const ticketCreator = members.find(member => !member.user.bot);
-            
-            if (ticketCreator) {
-                await sendVouchRequest(ticketCreator.user, 'Service', interaction.user.tag);
+            const ticketData = await findTicketByChannel(interaction.channel.id);
+            if (!ticketData) {
+                return await interaction.followUp({ 
+                    content: '❌ Ticket data not found. Cannot close.', 
+                    ephemeral: true 
+                });
             }
 
-            const closingEmbed = new EmbedBuilder()
-                .setTitle('🎉 Ticket Closed')
-                .setDescription(`**Closed by:** ${interaction.user}\n\nFeedback request sent to user.`)
-                .setColor(0x95a5a6)
-                .setTimestamp();
-
-            await interaction.channel.send({ embeds: [closingEmbed] });
-            
-            setTimeout(async () => {
-                try {
-                    await interaction.channel.delete();
-                } catch (error) {
-                    console.log('Error deleting channel:', error);
-                }
-            }, 3000);
+            await closeTicket(interaction, ticketData);
         }
 
         // Cancel close ticket
