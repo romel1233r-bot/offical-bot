@@ -2,13 +2,11 @@ const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectM
 const fs = require('fs');
 const path = require('path');
 
-// 🚀 ULTRA-FAST SETUP
 if (!process.env.BOT_TOKEN) {
     console.error('❌ BOT_TOKEN missing!');
     process.exit(1);
 }
 
-// ⚡ LIGHTNING DB
 class SpeedDB {
     constructor() {
         this.filePath = path.join(__dirname, 'tickets.json');
@@ -56,7 +54,6 @@ class SpeedDB {
 
 const db = new SpeedDB();
 
-// 🎯 CONFIG
 const config = {
     token: process.env.BOT_TOKEN,
     guildId: '1406416544451399832',
@@ -66,7 +63,6 @@ const config = {
     transcriptsChannel: '1406761652510134294'
 };
 
-// 🚀 VALIDATE & LAUNCH
 if (!config.token) {
     console.error('❌ Invalid token!');
     process.exit(1);
@@ -82,7 +78,6 @@ const client = new Client({
     ]
 });
 
-// 🎨 PREMIUM EMOJIS
 const EMOJIS = {
     LIMITEDS: '<:lim:1429231822646018149>',
     DAHOOD: '<:dh:1429232221683712070>',
@@ -94,261 +89,110 @@ const EMOJIS = {
     LIGHTNING: '⚡',
     MONEY: '💰',
     TICKET: '🎫',
-    AI: '🤖',
-    THINKING: '💭'
+    AI: '🤖'
 };
 
 const vouchSessions = new Map();
-let antiScamMessageId = null;
 
-// 🧠 DEEPSEEK AI SYSTEM
-class DeepSeekAI {
+// 🧠 SIMPLE ROMEL AI
+class RomelAI {
     constructor() {
         this.userSessions = new Map();
-        this.staffRole = config.adminRole;
-        this.conversationMemory = new Map();
     }
 
-    // 🎯 CHECK IF STAFF IS ACTIVE
-    async isStaffActive(channel) {
-        try {
-            const messages = await channel.messages.fetch({ limit: 15 });
-            const staffMessages = messages.filter(msg => 
-                msg.member && msg.member.roles.cache.has(this.staffRole) && !msg.author.bot
-            );
-            return staffMessages.size > 0;
-        } catch (error) {
-            return false;
-        }
-    }
-
-    // 🧠 DEEPSEEK AI RESPONSE ENGINE
-    async generateAIResponse(message, userHistory = []) {
+    async generateAIResponse(message) {
         const content = message.content.toLowerCase();
-        const userId = message.author.id;
         
-        // Get or create user conversation memory
-        const userMemory = this.conversationMemory.get(userId) || {
-            name: message.author.username,
-            interests: [],
-            lastTopics: [],
-            mood: 'neutral'
-        };
+        // General conversation responses
+        const responses = [
+            "I'm Romel AI! How can I help you today? 🤖",
+            "That's interesting! Tell me more about that. 💭",
+            "I understand what you're saying. Our staff can help with that! 👥",
+            "Great question! Let me get someone to assist you. 🔔",
+            "I'm here to help until our team arrives! What do you need? 🎯",
+            "Thanks for sharing! Our experts will handle this shortly. ⚡",
+            "I see what you mean. Our staff specializes in this area! 💎",
+            "Awesome! Let me notify the team about your inquiry. 📝",
+            "I appreciate you reaching out! Help is on the way. 🚀",
+            "Noted! Our professionals will take care of this. ✅"
+        ];
 
-        // 🎯 CONTEXTUAL RESPONSES
-        const responses = {
-            // Greetings
-            greetings: [
-                `👋 Hey ${userMemory.name}! I'm **DeepSeek AI**, your assistant while you wait for Romel's staff!`,
-                `🤖 Hello ${userMemory.name}! I'm DeepSeek - here to keep you company until staff arrives!`,
-                `🎯 Hi ${userMemory.name}! DeepSeek AI at your service! Staff will be here shortly!`
-            ],
-
-            // Stock & Services
-            stock: [
-                `📊 **Current Stock Status:**\n• Limiteds: Various rares available\n• Robux: Bulk quantities ready\n• DaHood: Multiple skins in stock\n\nStaff can provide exact details and pricing!`,
-                `💎 **Available Inventory:**\nWe maintain healthy stock levels across all services. Our staff will give you real-time availability and competitive pricing!`,
-                `🛒 **Stock Overview:**\nWe consistently stock popular items and currencies. Let staff know what specifically you're looking for!`
-            ],
-
-            // Pricing
-            pricing: [
-                `💰 **Pricing Info:**\nOur rates are competitive and vary based on market conditions. Staff will provide you with the best possible deal!`,
-                `🎯 **Cost Details:**\nPricing depends on quantity, item rarity, and current demand. Our team ensures you get fair market value!`,
-                `💵 **Rate Structure:**\nWe offer tiered pricing for bulk purchases. Staff can calculate exact costs based on your needs!`
-            ],
-
-            // Trust & Security
-            trust: [
-                `🛡️ **Trust & Security:**\n• 1000+ Successful Trades\n• Extensive Vouch History\n• Secure Transaction Process\n• Professional Staff Team`,
-                `✅ **Why Trust Us:**\nWe've built our reputation on reliability and customer satisfaction. Check our vouch channel for real customer feedback!`,
-                `🌟 **Reputation:**\nEstablished service with proven track record. All transactions are secure and staff-verified!`
-            ],
-
-            // Process & Timing
-            process: [
-                `⚡ **Process:**\n1. Discuss your needs with staff\n2. Get pricing and stock confirmation\n3. Secure transaction\n4. Instant delivery\n\nAverage completion: 5-15 minutes!`,
-                `🎯 **How It Works:**\nOur streamlined process ensures quick and secure transactions. Staff will guide you through each step!`,
-                `🚀 **Quick Service:**\nWe prioritize efficiency without compromising security. Most transactions are completed within minutes!`
-            ],
-
-            // Engaging Questions
-            questions: [
-                `💭 **Question for you:** What specific item or service are you most interested in today?`,
-                `🎯 **Curious:** Have you traded with professional services like ours before?`,
-                `🤔 **Thinking:** What's your main goal - building inventory, specific items, or currency?`,
-                `💡 **Prompt:** Are you looking for anything particular, or just browsing our offerings?`
-            ],
-
-            // Fun Facts
-            fun: [
-                `✨ **Fun Fact:** Our fastest transaction was completed in 47 seconds!`,
-                `🎉 **Did You Know:** We process an average of 50+ successful trades daily!`,
-                `⚡ **Pro Tip:** Having your Roblox username ready speeds up the process significantly!`,
-                `🌟 **Insight:** Our most popular service this week is Robux packages!`
-            ],
-
-            // General Responses
-            general: [
-                `🤖 **DeepSeek Analysis:** That's an interesting point! Our staff will provide detailed insights when they arrive.`,
-                `💭 **AI Processing:** I've logged your query. Staff will address this with expert knowledge shortly!`,
-                `🎯 **Noted:** Your question has been prioritized in the queue. Team is being notified!`,
-                `📝 **Recording:** I'm making sure staff sees this important question when they join!`
-            ]
-        };
-
-        // 🧠 INTELLIGENT RESPONSE SELECTION
-        let responseCategory = 'general';
-        
-        if (content.match(/\b(hi|hello|hey|yo|sup|whats? up|greetings)\b/)) {
-            responseCategory = 'greetings';
-            userMemory.mood = 'friendly';
+        // Specific responses for common questions
+        if (content.includes('hello') || content.includes('hi') || content.includes('hey')) {
+            return "👋 Hello! I'm Romel AI, your assistant! How can I help you today?";
         }
-        else if (content.match(/\b(stock|available|have|inventory|what.*got)\b/)) {
-            responseCategory = 'stock';
-            userMemory.interests.push('stock inquiry');
+        if (content.includes('how are you')) {
+            return "I'm doing great! Ready to help you with anything you need! 😊";
         }
-        else if (content.match(/\b(price|cost|how much|rate|pricing)\b/)) {
-            responseCategory = 'pricing';
-            userMemory.interests.push('pricing');
+        if (content.includes('thank')) {
+            return "You're welcome! Happy to assist! 🙏";
         }
-        else if (content.match(/\b(trust|legit|real|scam|fake|safe|secure)\b/)) {
-            responseCategory = 'trust';
-            userMemory.mood = 'reassuring';
+        if (content.includes('price') || content.includes('cost') || content.includes('how much')) {
+            return "💰 Our staff will provide you with the best pricing! They'll be here shortly.";
         }
-        else if (content.match(/\b(how|process|work|procedure|steps)\b/)) {
-            responseCategory = 'process';
-            userMemory.interests.push('process');
+        if (content.includes('stock') || content.includes('available')) {
+            return "📊 We have various items in stock! Staff can give you exact details.";
         }
-        else if (content.includes('?')) {
-            // For questions, sometimes respond with a question back to engage conversation
-            responseCategory = Math.random() < 0.4 ? 'questions' : 'general';
+        if (content.includes('time') || content.includes('wait')) {
+            return "⏰ Staff usually responds within a few minutes! Hang tight!";
         }
 
-        // Update conversation memory
-        userMemory.lastTopics.push(content.substring(0, 50));
-        if (userMemory.lastTopics.length > 5) userMemory.lastTopics.shift();
-        this.conversationMemory.set(userId, userMemory);
-
-        // Select response
-        const categoryResponses = responses[responseCategory];
-        const response = categoryResponses[Math.floor(Math.random() * categoryResponses.length)];
-
-        // Occasionally add follow-up questions (40% chance)
-        if (Math.random() < 0.4 && responseCategory !== 'questions') {
-            const question = responses.questions[Math.floor(Math.random() * responses.questions.length)];
-            return `${response}\n\n${question}`;
-        }
-
-        // Occasionally add fun facts (25% chance)
-        if (Math.random() < 0.25) {
-            const funFact = responses.fun[Math.floor(Math.random() * responses.fun.length)];
-            return `${response}\n\n${funFact}`;
-        }
-
-        return response;
+        return responses[Math.floor(Math.random() * responses.length)];
     }
 
-    // 🚀 SEND AI MESSAGE WITH PERSONALITY
-    async sendAIMessage(channel, response, userId) {
+    async sendAIMessage(channel, response) {
         try {
-            // Show typing indicator for realistic feel
             await channel.sendTyping();
+            await new Promise(resolve => setTimeout(resolve, 1000));
             
-            // Realistic typing delay based on message length
-            const typingTime = Math.min(response.length * 30, 3000);
-            await new Promise(resolve => setTimeout(resolve, typingTime));
-
-            // Create premium AI embed
             const aiEmbed = new EmbedBuilder()
-                .setDescription(response)
-                .setColor(0x00FF88) // DeepSeek brand color
-                .setAuthor({ 
-                    name: 'DeepSeek AI • Romel\'s Assistant', 
-                    iconURL: 'https://media.discordapp.net/attachments/1429234159674593352/1429235801782489160/romels_stock_banner1.png' 
-                })
-                .setFooter({ text: 'AI-Powered Support • Real-time Assistance' })
+                .setDescription(`**🤖 Romel AI:** ${response}`)
+                .setColor(0x5865F2)
+                .setFooter({ text: 'Romel AI • Always here to help' })
                 .setTimestamp();
 
             await channel.send({ embeds: [aiEmbed] });
-
         } catch (error) {
             console.log('AI message error:', error);
         }
     }
 
-    // 🎯 MAIN AI MESSAGE HANDLER
     async handleUserMessage(message) {
         try {
-            // Ignore bots, commands, and staff messages
             if (message.author.bot || message.content.startsWith('/') || message.content.startsWith('!')) return;
-            if (message.member.roles.cache.has(this.staffRole)) return;
+            if (message.member.roles.cache.has(config.adminRole)) return;
 
             const channel = message.channel;
             const userId = message.author.id;
             
-            // Check if staff is active in this channel
-            const staffActive = await this.isStaffActive(channel);
-            if (staffActive) {
-                // Clear conversation memory when staff joins
-                this.conversationMemory.delete(userId);
-                return;
-            }
-
-            // Get user session for rate limiting
-            const userSession = this.userSessions.get(userId) || { 
-                messageCount: 0, 
-                lastMessageTime: 0,
-                responseCount: 0 
-            };
-            
-            // Rate limiting: Max 1 AI response per 45 seconds
+            const userSession = this.userSessions.get(userId) || { lastMessageTime: 0 };
             const now = Date.now();
-            if (now - userSession.lastMessageTime < 45000) return;
             
-            // Don't respond to every message (respond to ~40% of user messages)
-            userSession.messageCount++;
-            const shouldRespond = userSession.messageCount % 2 === 0 || userSession.responseCount < 2;
+            if (now - userSession.lastMessageTime < 30000) return;
             
-            if (!shouldRespond) {
-                userSession.lastMessageTime = now;
-                this.userSessions.set(userId, userSession);
-                return;
-            }
-
-            // Generate AI response
-            const userMemory = this.conversationMemory.get(userId);
-            const response = await this.generateAIResponse(message, userMemory);
-            
-            // Update session
+            const response = await this.generateAIResponse(message);
             userSession.lastMessageTime = now;
-            userSession.responseCount++;
             this.userSessions.set(userId, userSession);
             
-            // Send AI response
-            await this.sendAIMessage(channel, response, userId);
+            await this.sendAIMessage(channel, response);
             
         } catch (error) {
             console.log('AI handler error:', error);
         }
     }
 
-    // 🧹 CLEANUP OLD SESSIONS
     cleanupSessions() {
         const now = Date.now();
         for (const [userId, session] of this.userSessions.entries()) {
-            if (now - session.lastMessageTime > 600000) { // 10 minutes
+            if (now - session.lastMessageTime > 600000) {
                 this.userSessions.delete(userId);
-                this.conversationMemory.delete(userId);
             }
         }
     }
 }
 
-// Initialize AI
-const deepSeekAI = new DeepSeekAI();
+const romelAI = new RomelAI();
 
-// ⚡ LIGHTNING COMMANDS
 const commands = [
     new SlashCommandBuilder()
         .setName('setup-tickets')
@@ -364,10 +208,9 @@ const commands = [
     
     new SlashCommandBuilder()
         .setName('close')
-        .setDescription('⚡ Instantly close ticket (Staff only)')
+        .setDescription('⚡ Close current ticket (Anyone can use)')
 ].map(command => command.toJSON());
 
-// 🚀 ULTRA-FAST COMMAND REGISTRATION
 async function registerSlashCommands() {
     try {
         const rest = new REST({ version: '10' }).setToken(config.token);
@@ -384,15 +227,13 @@ async function registerSlashCommands() {
     }
 }
 
-// 🎨 PREMIUM TRANSCRIPT GENERATOR
 async function generateTranscript(messages, ticketData) {
     const transcript = messages.reverse().map(msg => {
         const time = new Date(msg.createdTimestamp).toLocaleString();
-        const attachments = msg.attachments.size > 0 ? `\n[${msg.attachments.size} attachment(s)]` : '';
-        return `[${time}] ${msg.author.tag}: ${msg.content}${attachments}`;
+        return `[${time}] ${msg.author.tag}: ${msg.content}`;
     }).join('\n');
 
-    return `🎫 TICKET TRANSCRIPT #${ticketData.number}
+    return `🎫 TICKET #${ticketData.number}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 👤 USER: ${ticketData.userTag} (${ticketData.userId})
 🎯 SERVICE: ${ticketData.description}
@@ -403,81 +244,78 @@ async function generateTranscript(messages, ticketData) {
 ${transcript}`;
 }
 
-// ⚡ INSTANT TICKET CLOSER
+// 🚀 FIXED TICKET CLOSING SYSTEM
 async function closeTicketInstantly(interaction, ticketData) {
     try {
         const channel = interaction.channel;
+        console.log(`🔧 Closing ticket #${ticketData.number}`);
         
-        // 🚀 ULTRA-FAST MESSAGE FETCH
-        const messages = await channel.messages.fetch({ limit: 100 });
-        
-        // ⚡ INSTANT TRANSCRIPT
-        const transcript = await generateTranscript([...messages.values()], ticketData);
-        const transcriptBuffer = Buffer.from(transcript, 'utf8');
-        const attachment = new AttachmentBuilder(transcriptBuffer, { name: `ticket-${ticketData.number}.txt` });
-
-        // 🎯 SEND TRANSCRIPT & VOUCH IN PARALLEL
-        const promises = [];
-
-        promises.push(
-            client.channels.fetch(config.transcriptsChannel).then(transcriptsChannel => {
-                if (transcriptsChannel) {
-                    return transcriptsChannel.send({
-                        content: `📄 **Instant Transcript** - Ticket #${ticketData.number}`,
-                        files: [attachment]
-                    });
-                }
-            }).catch(() => {})
-        );
-
-        promises.push(
-            client.users.fetch(ticketData.userId).then(user => {
-                if (user) {
-                    return sendVouchRequest(user, ticketData.description, interaction.user.tag);
-                }
-            }).catch(() => {})
-        );
-
-        // 🗄️ UPDATE DATABASE INSTANTLY
+        // Update database FIRST
         const userTickets = await db.get(`tickets.${ticketData.userId}`) || [];
         const updatedTickets = userTickets.map(ticket => 
             ticket.channelId === channel.id ? { ...ticket, open: false, closedAt: new Date().toISOString() } : ticket
         );
         await db.set(`tickets.${ticketData.userId}`, updatedTickets);
+        console.log('✅ Database updated');
 
-        // 🎨 PREMIUM CLOSING EMBED
+        // Get messages for transcript
+        let messages;
+        try {
+            messages = await channel.messages.fetch({ limit: 50 });
+        } catch (error) {
+            messages = new Map();
+        }
+
+        // Send transcript
+        if (messages.size > 0) {
+            try {
+                const transcript = await generateTranscript([...messages.values()], ticketData);
+                const transcriptBuffer = Buffer.from(transcript, 'utf8');
+                const attachment = new AttachmentBuilder(transcriptBuffer, { name: `ticket-${ticketData.number}.txt` });
+
+                const transcriptsChannel = await client.channels.fetch(config.transcriptsChannel);
+                if (transcriptsChannel) {
+                    await transcriptsChannel.send({
+                        content: `📄 Transcript - Ticket #${ticketData.number}`,
+                        files: [attachment]
+                    });
+                }
+            } catch (error) {}
+        }
+
+        // Send vouch request
+        try {
+            const user = await client.users.fetch(ticketData.userId);
+            if (user) {
+                await sendVouchRequest(user, ticketData.description, interaction.user.tag);
+            }
+        } catch (error) {}
+
+        // Send closing message
         const closingEmbed = new EmbedBuilder()
             .setTitle('⚡ **TICKET CLOSED**')
-            .setDescription(`**Closed by:** ${interaction.user}\n**Ticket:** #${ticketData.number}\n**Service:** ${ticketData.description}`)
-            .addFields(
-                { name: `${EMOJIS.LIGHTNING} Speed`, value: '• Instant closure\n• Transcript saved\n• Feedback sent', inline: true },
-                { name: `${EMOJIS.CHECKMARK} Status`, value: '• Completed\n• Archived\n• Processed', inline: true }
-            )
+            .setDescription(`**Closed by:** ${interaction.user}\n**Ticket:** #${ticketData.number}`)
             .setColor(0x00FF00)
-            .setThumbnail('https://media.discordapp.net/attachments/1429234159674593352/1429235801782489160/romels_stock_banner1.png')
-            .setFooter({ text: 'Romel\'s Stock • Premium Service' })
             .setTimestamp();
 
         await channel.send({ embeds: [closingEmbed] });
 
-        // 💥 INSTANT CHANNEL DELETE
+        // Delete channel immediately
         setTimeout(async () => {
             try {
                 await channel.delete();
+                console.log(`✅ Ticket channel deleted`);
             } catch (error) {
                 console.log('Channel deletion error:', error);
             }
-        }, 1000);
-
-        await Promise.allSettled(promises);
+        }, 2000);
 
     } catch (error) {
-        console.error('Instant close error:', error);
+        console.error('Close ticket error:', error);
         throw error;
     }
 }
 
-// 🎯 FIND TICKET - LIGHTNING FAST
 async function findTicketByChannel(channelId) {
     try {
         const data = db.read();
@@ -487,14 +325,46 @@ async function findTicketByChannel(channelId) {
         }
         return null;
     } catch (error) {
-        console.error('Ticket find error:', error);
         return null;
     }
 }
 
-// 🚀 BOT READY - ULTRA FAST
+// 🎯 CREATE CATEGORIES FOR TICKETS
+async function getOrCreateCategory(guild, categoryName) {
+    try {
+        // Find existing category
+        const existingCategory = guild.channels.cache.find(
+            channel => channel.type === ChannelType.GuildCategory && channel.name === categoryName
+        );
+        
+        if (existingCategory) return existingCategory;
+
+        // Create new category
+        const category = await guild.channels.create({
+            name: categoryName,
+            type: ChannelType.GuildCategory,
+            permissionOverwrites: [
+                {
+                    id: guild.id,
+                    deny: [PermissionsBitField.Flags.ViewChannel],
+                },
+                {
+                    id: config.adminRole,
+                    allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+                },
+            ],
+        });
+
+        console.log(`✅ Created category: ${categoryName}`);
+        return category;
+    } catch (error) {
+        console.error('Category creation error:', error);
+        return null;
+    }
+}
+
 client.once('ready', async () => {
-    console.log(`⚡ ${client.user.tag} is ONLINE with DeepSeek AI!`);
+    console.log(`⚡ ${client.user.tag} is ONLINE!`);
     
     client.user.setPresence({
         activities: [{ name: 'discord.gg/romel | 🤖 AI Powered', type: 3 }],
@@ -502,29 +372,25 @@ client.once('ready', async () => {
     });
 
     await registerSlashCommands();
-    
-    // Start AI session cleanup every 5 minutes
-    setInterval(() => deepSeekAI.cleanupSessions(), 300000);
-    
-    console.log('✅ Bot is fully operational with AI!');
+    setInterval(() => romelAI.cleanupSessions(), 300000);
+    console.log('✅ Bot is fully operational!');
 });
 
-// 🎨 PREMIUM TICKET CREATION
+// 🎯 TICKET CREATION WITH CATEGORIES
 async function createTicket(interaction, type, description) {
     try {
         const guild = interaction.guild;
         const member = interaction.member;
 
-        // 🚀 INSTANT DUPLICATE CHECK
+        // Check for existing tickets
         const userTickets = await db.get(`tickets.${member.id}`) || [];
         const openTicket = userTickets.find(ticket => ticket.open);
         
         if (openTicket) {
             const errorEmbed = new EmbedBuilder()
                 .setTitle('🚫 Active Ticket Found')
-                .setDescription('You already have an open ticket! Close it first to create a new one.')
+                .setDescription('You already have an open ticket! Close it first.')
                 .setColor(0xFF4444)
-                .setFooter({ text: 'Romel\'s Stock • One Ticket at a Time' })
                 .setTimestamp();
 
             return await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
@@ -535,11 +401,21 @@ async function createTicket(interaction, type, description) {
             ephemeral: true 
         });
 
-        // ⚡ INSTANT TICKET CREATION
         const ticketNumber = (await db.get('counter') || 0) + 1;
+        
+        // Determine category based on ticket type
+        let categoryName = 'Tickets';
+        if (type.includes('buy')) categoryName = 'Buying Tickets';
+        if (type.includes('sell')) categoryName = 'Selling Tickets';
+        if (type === 'services') categoryName = 'Service Tickets';
+        if (type === 'robux') categoryName = 'Robux Tickets';
+
+        const category = await getOrCreateCategory(guild, categoryName);
+
         const ticketChannel = await guild.channels.create({
             name: `ticket-${ticketNumber}`,
             type: ChannelType.GuildText,
+            parent: category ? category.id : null,
             permissionOverwrites: [
                 { id: guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
                 { id: member.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] },
@@ -548,7 +424,7 @@ async function createTicket(interaction, type, description) {
             ]
         });
 
-        // 💾 INSTANT DATA SAVE
+        // Save ticket data
         const ticketData = {
             channelId: ticketChannel.id,
             userId: member.id,
@@ -565,35 +441,33 @@ async function createTicket(interaction, type, description) {
         await db.set(`tickets.${member.id}`, currentTickets);
         await db.set('counter', ticketNumber);
 
-        // 🎨 PREMIUM TICKET EMBED (Smaller banner - using thumbnail instead of image)
         const ticketEmbed = new EmbedBuilder()
-            .setTitle(`${EMOJIS.TICKET} **PREMIUM TICKET #${ticketNumber}**`)
-            .setDescription(`Welcome to your **dedicated support channel**!`)
+            .setTitle(`${EMOJIS.TICKET} **TICKET #${ticketNumber}**`)
+            .setDescription(`Welcome to your support channel!`)
             .addFields(
                 { name: `${EMOJIS.CHECKMARK} Client`, value: `${member}`, inline: true },
                 { name: `${EMOJIS.MONEY} Service`, value: `${description}`, inline: true },
                 { name: `${EMOJIS.LIGHTNING} Created`, value: `<t:${Math.floor(Date.now()/1000)}:R>`, inline: true }
             )
             .addFields(
-                { name: `${EMOJIS.AI} AI Assistant`, value: 'DeepSeek AI is here to help while you wait for staff!' },
+                { name: `${EMOJIS.AI} Romel AI`, value: 'I\'m here to help while you wait for staff!' },
                 { name: '🚀 Getting Started', value: 'Tell us what you need - our team will assist you shortly.' }
             )
             .setColor(0x5865F2)
-            .setThumbnail('https://media.discordapp.net/attachments/1429234159674593352/1429235801782489160/romels_stock_banner1.png') // Smaller banner
-            .setFooter({ text: 'Romel\'s Stock • AI-Powered Premium Support' })
+            .setFooter({ text: 'Romel\'s Stock • Premium Support' })
             .setTimestamp();
 
         const ticketButtons = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
                     .setCustomId('instant_close')
-                    .setLabel('⚡ INSTANT CLOSE')
+                    .setLabel('⚡ CLOSE TICKET')
                     .setStyle(ButtonStyle.Danger)
                     .setEmoji('⚡')
             );
 
         await ticketChannel.send({ 
-            content: `${member} <@&${config.adminRole}> ${EMOJIS.LIGHTNING}\n\n${EMOJIS.AI} **DeepSeek AI is now active in this ticket!**`, 
+            content: `${member} <@&${config.adminRole}> ${EMOJIS.LIGHTNING}\n\n${EMOJIS.AI} **Romel AI is now active!**`, 
             embeds: [ticketEmbed], 
             components: [ticketButtons] 
         });
@@ -610,18 +484,16 @@ async function createTicket(interaction, type, description) {
     }
 }
 
-// 🎯 VOUCH SYSTEM - OPTIMIZED
 async function sendVouchRequest(user, ticketDescription, staffMember) {
     try {
         const vouchEmbed = new EmbedBuilder()
             .setTitle('🌟 **Rate Your Experience**')
-            .setDescription(`Thank you for choosing **Romel's Stock**!\n\nYour feedback helps us maintain **premium service quality**.`)
+            .setDescription(`Thank you for choosing **Romel's Stock**!`)
             .addFields(
-                { name: '📊 Service Summary', value: `**Service:** ${ticketDescription}\n**Staff:** ${staffMember}\n**Completed:** <t:${Math.floor(Date.now()/1000)}:R>` },
+                { name: '📊 Service Summary', value: `**Service:** ${ticketDescription}\n**Completed:** <t:${Math.floor(Date.now()/1000)}:R>` },
                 { name: '⭐ Your Rating', value: 'Select your rating below!' }
             )
             .setColor(0x9B59B6)
-            .setThumbnail('https://media.discordapp.net/attachments/1429234159674593352/1429235801782489160/romels_stock_banner1.png')
             .setFooter({ text: 'Romel\'s Stock • Customer Feedback' })
             .setTimestamp();
 
@@ -659,12 +531,10 @@ async function sendVouchToChannel(user, rating, ticketDescription, comment = '')
             .setDescription(`**Rating:** ${rating}/5 ${stars}\n**Service:** ${ticketDescription}`)
             .addFields(
                 { name: '👤 Reviewed By', value: `${user.tag}`, inline: true },
-                { name: '🆔 User ID', value: `\`${user.id}\``, inline: true },
                 { name: '🕒 Review Time', value: `<t:${Math.floor(Date.now()/1000)}:f>`, inline: true }
             )
             .setColor(ratingColor)
-            .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 256 }))
-            .setFooter({ text: 'Romel\'s Stock • Premium Feedback' })
+            .setFooter({ text: 'Romel\'s Stock • Customer Feedback' })
             .setTimestamp();
 
         if (comment) {
@@ -680,16 +550,14 @@ async function sendVouchToChannel(user, rating, ticketDescription, comment = '')
 
 // 🧠 MESSAGE HANDLER FOR AI
 client.on('messageCreate', async (message) => {
-    // Only handle messages in ticket channels
     if (message.channel.name.startsWith('ticket-') && !message.author.bot) {
-        await deepSeekAI.handleUserMessage(message);
+        await romelAI.handleUserMessage(message);
     }
 });
 
-// ⚡ LIGHTNING INTERACTION HANDLER
+// ⚡ INTERACTION HANDLER
 client.on('interactionCreate', async (interaction) => {
     try {
-        // 🎯 SLASH COMMANDS
         if (interaction.isChatInputCommand()) {
             switch (interaction.commandName) {
                 case 'setup-tickets':
@@ -697,13 +565,11 @@ client.on('interactionCreate', async (interaction) => {
                         return await interaction.reply({ content: '❌ Admin only!', ephemeral: true });
                     }
 
-                    // 🎨 PREMIUM PANEL EMBED (Smaller banner)
                     const embed = new EmbedBuilder()
-                        .setTitle(`${EMOJIS.LIGHTNING} **ROMEL'S STOCK** ${EMOJIS.MONEY}`)
-                        .setDescription(`**Professional Trading & Premium Services**\n\n${EMOJIS.CHECKMARK} **Verified & Trusted Service**\n${EMOJIS.AI} **AI-Powered Support**\n${EMOJIS.LIGHTNING} **Instant Transactions**\n${EMOJIS.STAR} **1000+ Successful Trades**`)
+                        .setTitle(`🎫 **ROMEL'S STOCK TICKETS**`)
+                        .setDescription(`**Professional Trading & Services**\n\n${EMOJIS.CHECKMARK} **Verified & Trusted**\n${EMOJIS.AI} **Romel AI Assistant**\n${EMOJIS.LIGHTNING} **Instant Support**`)
                         .setColor(0x5865F2)
-                        .setThumbnail('https://media.discordapp.net/attachments/1429234159674593352/1429235801782489160/romels_stock_banner1.png') // Smaller banner
-                        .setFooter({ text: 'Romel\'s Stock • Elite Trading Services', iconURL: client.user.displayAvatarURL() })
+                        .setFooter({ text: 'Romel\'s Stock • Elite Services' })
                         .setTimestamp();
 
                     const row = new ActionRowBuilder()
@@ -739,15 +605,12 @@ client.on('interactionCreate', async (interaction) => {
                                 ])
                         );
 
-                    await interaction.reply({ content: '✅ **Premium panel created!**', ephemeral: true });
+                    await interaction.reply({ content: '✅ **Panel created!**', ephemeral: true });
                     await interaction.channel.send({ embeds: [embed], components: [row] });
                     break;
 
                 case 'close':
-                    if (!interaction.member.roles.cache.has(config.adminRole)) {
-                        return await interaction.reply({ content: '❌ Staff only!', ephemeral: true });
-                    }
-
+                    // 🎯 ANYONE CAN CLOSE TICKETS NOW!
                     const ticketData = await findTicketByChannel(interaction.channel.id);
                     if (!ticketData) {
                         return await interaction.reply({ content: '❌ Not a ticket channel!', ephemeral: true });
@@ -772,7 +635,7 @@ client.on('interactionCreate', async (interaction) => {
                 case 'ping':
                     const latency = Date.now() - interaction.createdTimestamp;
                     await interaction.reply({ 
-                        content: `🏓 **PONG!** Latency: ${latency}ms | API: ${Math.round(client.ws.ping)}ms ${EMOJIS.LIGHTNING}`,
+                        content: `🏓 **PONG!** Latency: ${latency}ms | API: ${Math.round(client.ws.ping)}ms`,
                         ephemeral: true 
                     });
                     break;
@@ -780,7 +643,6 @@ client.on('interactionCreate', async (interaction) => {
             return;
         }
 
-        // 🎯 SELECT MENUS
         if (interaction.isStringSelectMenu()) {
             if (interaction.customId === 'ticket_type') {
                 const selected = interaction.values[0];
@@ -827,7 +689,6 @@ client.on('interactionCreate', async (interaction) => {
                 }
             }
 
-            // BUY/SELL SELECTION
             if (interaction.customId.startsWith('buy_sell_')) {
                 const [action, type] = interaction.values[0].split('_');
                 const serviceName = type === 'limiteds' ? 'Limiteds' : 'Dahood Skins';
@@ -836,7 +697,6 @@ client.on('interactionCreate', async (interaction) => {
                 await createTicket(interaction, `${action}-${type}`, description);
             }
 
-            // VOUCH RATING
             if (interaction.customId === 'vouch_rating') {
                 const rating = parseInt(interaction.values[0].split('_')[1]);
                 vouchSessions.set(interaction.user.id, { rating });
@@ -857,7 +717,6 @@ client.on('interactionCreate', async (interaction) => {
             }
         }
 
-        // 🎯 MODAL SUBMITS
         if (interaction.isModalSubmit() && interaction.customId === 'vouch_comment_modal') {
             const comment = interaction.fields.getTextInputValue('vouch_comment');
             const vouchData = vouchSessions.get(interaction.user.id);
@@ -876,15 +735,11 @@ client.on('interactionCreate', async (interaction) => {
             }
         }
 
-        // ⚡ INSTANT CLOSE BUTTON
+        // ⚡ INSTANT CLOSE BUTTON - ANYONE CAN USE!
         if (interaction.isButton() && interaction.customId === 'instant_close') {
             const ticketData = await findTicketByChannel(interaction.channel.id);
             if (!ticketData) {
-                return await interaction.reply({ content: '❌ Ticket data missing!', ephemeral: true });
-            }
-
-            if (!interaction.member.roles.cache.has(config.adminRole)) {
-                return await interaction.reply({ content: '❌ Staff only!', ephemeral: true });
+                return await interaction.reply({ content: '❌ Not a ticket!', ephemeral: true });
             }
 
             await interaction.deferUpdate();
@@ -899,7 +754,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// 🚀 LAUNCH THE BEAST
+// 🚀 LAUNCH
 client.login(config.token).catch(error => {
     console.error('❌ Login failed:', error.message);
     process.exit(1);
