@@ -103,7 +103,6 @@ class RomelAI {
     async generateAIResponse(message) {
         const content = message.content.toLowerCase();
         
-        // General conversation responses
         const responses = [
             "I'm Romel AI! How can I help you today? 🤖",
             "That's interesting! Tell me more about that. 💭",
@@ -117,7 +116,6 @@ class RomelAI {
             "Noted! Our professionals will take care of this. ✅"
         ];
 
-        // Specific responses for common questions
         if (content.includes('hello') || content.includes('hi') || content.includes('hey')) {
             return "👋 Hello! I'm Romel AI, your assistant! How can I help you today?";
         }
@@ -227,91 +225,74 @@ async function registerSlashCommands() {
     }
 }
 
-async function generateTranscript(messages, ticketData) {
-    const transcript = messages.reverse().map(msg => {
-        const time = new Date(msg.createdTimestamp).toLocaleString();
-        return `[${time}] ${msg.author.tag}: ${msg.content}`;
-    }).join('\n');
-
-    return `🎫 TICKET #${ticketData.number}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-👤 USER: ${ticketData.userTag} (${ticketData.userId})
-🎯 SERVICE: ${ticketData.description}
-🕒 CREATED: ${new Date(ticketData.createdAt).toLocaleString()}
-🔒 CLOSED: ${new Date().toLocaleString()}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-${transcript}`;
-}
-
-// 🚀 FIXED TICKET CLOSING SYSTEM
-async function closeTicketInstantly(interaction, ticketData) {
+// 🚀 **FIXED TICKET CLOSING SYSTEM**
+async function closeTicketInstantly(channel, closer, ticketData) {
     try {
-        const channel = interaction.channel;
-        console.log(`🔧 Closing ticket #${ticketData.number}`);
+        console.log(`🔧 Closing ticket #${ticketData.number} in channel ${channel.id}`);
         
-        // Update database FIRST
+        // 🗄️ UPDATE DATABASE FIRST - THIS WAS THE MAIN ISSUE
         const userTickets = await db.get(`tickets.${ticketData.userId}`) || [];
         const updatedTickets = userTickets.map(ticket => 
             ticket.channelId === channel.id ? { ...ticket, open: false, closedAt: new Date().toISOString() } : ticket
         );
         await db.set(`tickets.${ticketData.userId}`, updatedTickets);
-        console.log('✅ Database updated');
+        console.log('✅ Database updated - ticket marked as closed');
 
-        // Get messages for transcript
-        let messages;
+        // 📄 CREATE SIMPLE TRANSCRIPT
         try {
-            messages = await channel.messages.fetch({ limit: 50 });
-        } catch (error) {
-            messages = new Map();
+            const messages = await channel.messages.fetch({ limit: 50 });
+            const transcript = [...messages.values()].reverse().map(msg => 
+                `[${new Date(msg.createdTimestamp).toLocaleString()}] ${msg.author.tag}: ${msg.content}`
+            ).join('\n');
+
+            const transcriptText = `TICKET #${ticketData.number}\nUSER: ${ticketData.userTag}\nSERVICE: ${ticketData.description}\nCLOSED BY: ${closer.tag}\n\n${transcript}`;
+            
+            const transcriptBuffer = Buffer.from(transcriptText, 'utf8');
+            const attachment = new AttachmentBuilder(transcriptBuffer, { name: `ticket-${ticketData.number}.txt` });
+
+            const transcriptsChannel = await client.channels.fetch(config.transcriptsChannel);
+            if (transcriptsChannel) {
+                await transcriptsChannel.send({
+                    content: `📄 Transcript - Ticket #${ticketData.number}`,
+                    files: [attachment]
+                });
+                console.log('✅ Transcript saved');
+            }
+        } catch (transcriptError) {
+            console.log('⚠️ Transcript failed, continuing...');
         }
 
-        // Send transcript
-        if (messages.size > 0) {
-            try {
-                const transcript = await generateTranscript([...messages.values()], ticketData);
-                const transcriptBuffer = Buffer.from(transcript, 'utf8');
-                const attachment = new AttachmentBuilder(transcriptBuffer, { name: `ticket-${ticketData.number}.txt` });
-
-                const transcriptsChannel = await client.channels.fetch(config.transcriptsChannel);
-                if (transcriptsChannel) {
-                    await transcriptsChannel.send({
-                        content: `📄 Transcript - Ticket #${ticketData.number}`,
-                        files: [attachment]
-                    });
-                }
-            } catch (error) {}
-        }
-
-        // Send vouch request
+        // 🌟 SEND VOUCH REQUEST
         try {
             const user = await client.users.fetch(ticketData.userId);
             if (user) {
-                await sendVouchRequest(user, ticketData.description, interaction.user.tag);
+                await sendVouchRequest(user, ticketData.description, closer.tag);
+                console.log('✅ Vouch request sent');
             }
-        } catch (error) {}
+        } catch (vouchError) {
+            console.log('⚠️ Vouch request failed');
+        }
 
-        // Send closing message
+        // 💬 SEND CLOSING MESSAGE
         const closingEmbed = new EmbedBuilder()
             .setTitle('⚡ **TICKET CLOSED**')
-            .setDescription(`**Closed by:** ${interaction.user}\n**Ticket:** #${ticketData.number}`)
+            .setDescription(`**Closed by:** ${closer}\n**Ticket:** #${ticketData.number}\n**Service:** ${ticketData.description}`)
             .setColor(0x00FF00)
             .setTimestamp();
 
         await channel.send({ embeds: [closingEmbed] });
+        console.log('✅ Closing message sent');
 
-        // Delete channel immediately
-        setTimeout(async () => {
-            try {
-                await channel.delete();
-                console.log(`✅ Ticket channel deleted`);
-            } catch (error) {
-                console.log('Channel deletion error:', error);
-            }
-        }, 2000);
+        // 🗑️ DELETE CHANNEL IMMEDIATELY - NO DELAY!
+        try {
+            await channel.delete();
+            console.log(`✅ Ticket channel DELETED successfully`);
+        } catch (deleteError) {
+            console.log('❌ Channel deletion error:', deleteError);
+        }
 
     } catch (error) {
-        console.error('Close ticket error:', error);
+        console.error('❌ Close ticket error:', error);
         throw error;
     }
 }
@@ -320,45 +301,19 @@ async function findTicketByChannel(channelId) {
     try {
         const data = db.read();
         for (const userId in data.tickets) {
-            const ticket = data.tickets[userId].find(t => t.channelId === channelId && t.open);
-            if (ticket) return ticket;
+            const userTickets = data.tickets[userId];
+            if (Array.isArray(userTickets)) {
+                const ticket = userTickets.find(t => t.channelId === channelId && t.open);
+                if (ticket) {
+                    console.log(`✅ Found ticket: #${ticket.number}`);
+                    return ticket;
+                }
+            }
         }
+        console.log('❌ No open ticket found for channel:', channelId);
         return null;
     } catch (error) {
-        return null;
-    }
-}
-
-// 🎯 CREATE CATEGORIES FOR TICKETS
-async function getOrCreateCategory(guild, categoryName) {
-    try {
-        // Find existing category
-        const existingCategory = guild.channels.cache.find(
-            channel => channel.type === ChannelType.GuildCategory && channel.name === categoryName
-        );
-        
-        if (existingCategory) return existingCategory;
-
-        // Create new category
-        const category = await guild.channels.create({
-            name: categoryName,
-            type: ChannelType.GuildCategory,
-            permissionOverwrites: [
-                {
-                    id: guild.id,
-                    deny: [PermissionsBitField.Flags.ViewChannel],
-                },
-                {
-                    id: config.adminRole,
-                    allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
-                },
-            ],
-        });
-
-        console.log(`✅ Created category: ${categoryName}`);
-        return category;
-    } catch (error) {
-        console.error('Category creation error:', error);
+        console.error('❌ Ticket find error:', error);
         return null;
     }
 }
@@ -376,13 +331,11 @@ client.once('ready', async () => {
     console.log('✅ Bot is fully operational!');
 });
 
-// 🎯 TICKET CREATION WITH CATEGORIES
 async function createTicket(interaction, type, description) {
     try {
         const guild = interaction.guild;
         const member = interaction.member;
 
-        // Check for existing tickets
         const userTickets = await db.get(`tickets.${member.id}`) || [];
         const openTicket = userTickets.find(ticket => ticket.open);
         
@@ -402,20 +355,10 @@ async function createTicket(interaction, type, description) {
         });
 
         const ticketNumber = (await db.get('counter') || 0) + 1;
-        
-        // Determine category based on ticket type
-        let categoryName = 'Tickets';
-        if (type.includes('buy')) categoryName = 'Buying Tickets';
-        if (type.includes('sell')) categoryName = 'Selling Tickets';
-        if (type === 'services') categoryName = 'Service Tickets';
-        if (type === 'robux') categoryName = 'Robux Tickets';
-
-        const category = await getOrCreateCategory(guild, categoryName);
 
         const ticketChannel = await guild.channels.create({
             name: `ticket-${ticketNumber}`,
             type: ChannelType.GuildText,
-            parent: category ? category.id : null,
             permissionOverwrites: [
                 { id: guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
                 { id: member.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] },
@@ -424,7 +367,6 @@ async function createTicket(interaction, type, description) {
             ]
         });
 
-        // Save ticket data
         const ticketData = {
             channelId: ticketChannel.id,
             userId: member.id,
@@ -555,7 +497,7 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-// ⚡ INTERACTION HANDLER
+// ⚡ **FIXED INTERACTION HANDLER**
 client.on('interactionCreate', async (interaction) => {
     try {
         if (interaction.isChatInputCommand()) {
@@ -610,14 +552,14 @@ client.on('interactionCreate', async (interaction) => {
                     break;
 
                 case 'close':
-                    // 🎯 ANYONE CAN CLOSE TICKETS NOW!
-                    const ticketData = await findTicketByChannel(interaction.channel.id);
-                    if (!ticketData) {
+                    console.log('🔧 /close command used by:', interaction.user.tag);
+                    const ticketDataCmd = await findTicketByChannel(interaction.channel.id);
+                    if (!ticketDataCmd) {
                         return await interaction.reply({ content: '❌ Not a ticket channel!', ephemeral: true });
                     }
 
                     await interaction.reply({ content: `${EMOJIS.LIGHTNING} **Closing ticket...**` });
-                    await closeTicketInstantly(interaction, ticketData);
+                    await closeTicketInstantly(interaction.channel, interaction.user, ticketDataCmd);
                     break;
 
                 case 'reset-tickets':
@@ -735,19 +677,22 @@ client.on('interactionCreate', async (interaction) => {
             }
         }
 
-        // ⚡ INSTANT CLOSE BUTTON - ANYONE CAN USE!
+        // ⚡ **FIXED CLOSE BUTTON - THIS WAS THE MAIN ISSUE!**
         if (interaction.isButton() && interaction.customId === 'instant_close') {
+            console.log('🔧 Close button pressed by:', interaction.user.tag);
+            
             const ticketData = await findTicketByChannel(interaction.channel.id);
             if (!ticketData) {
-                return await interaction.reply({ content: '❌ Not a ticket!', ephemeral: true });
+                return await interaction.reply({ content: '❌ Not a ticket channel!', ephemeral: true });
             }
 
             await interaction.deferUpdate();
-            await closeTicketInstantly(interaction, ticketData);
+            console.log('✅ Starting ticket closure process...');
+            await closeTicketInstantly(interaction.channel, interaction.user, ticketData);
         }
 
     } catch (error) {
-        console.error('Interaction error:', error);
+        console.error('❌ Interaction error:', error);
         try {
             await interaction.reply({ content: '❌ Error occurred!', ephemeral: true });
         } catch (e) {}
